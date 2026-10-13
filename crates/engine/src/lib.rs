@@ -11,6 +11,10 @@
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable))]
 
 pub mod aaf_omf;
+pub mod ai_video;
+/// The MiniMax cloud provider, behind the `minimax` feature (HTTPS; off in wasm builds).
+#[cfg(feature = "minimax")]
+pub mod ai_video_minimax;
 pub mod autosave;
 pub mod captions;
 pub mod clip_ops;
@@ -421,6 +425,10 @@ pub struct Session {
     pub offline: relink::OfflineState,
     /// Proxy / ingest / project-manager jobs whose results still have to be applied to the project.
     pub media_jobs: Vec<proxies::PendingJob>,
+    /// AI video generation jobs whose results are imported and placed when they finish.
+    pub ai_jobs: Vec<ai_video::PendingAi>,
+    /// The AI video provider used by `clip.aiVideo` (the stub ships; hosts and tests replace it).
+    pub ai_provider: Arc<dyn ai_video::AiVideoProvider>,
     /// Mask tracking jobs whose keyframes are still being written.
     pub mask_jobs: Vec<masks::PendingTrack>,
     /// Scene Edit Detection jobs whose results are applied when they finish.
@@ -527,6 +535,8 @@ impl Session {
             shortcuts: shortcuts::Shortcuts::new(),
             offline: Default::default(),
             media_jobs: Vec::new(),
+            ai_jobs: Vec::new(),
+            ai_provider: ai_video::default_provider(),
             mask_jobs: Vec::new(),
             scene_jobs: Vec::new(),
             presets: Default::default(),
@@ -624,6 +634,7 @@ impl Session {
         proxies::poll(self);
         masks::poll(self);
         scene_detect::poll(self);
+        ai_video::poll(self);
         export_tools::pump_queue(self, false);
         panels::log_jobs(self);
         let Some(p) = self.persistence.as_mut() else { return };
@@ -1209,6 +1220,8 @@ const MAX_SUBCLIP_CHAIN: usize = 16;
 
 #[cfg(test)]
 mod aaf_omf_tests;
+#[cfg(test)]
+mod ai_video_tests;
 #[cfg(test)]
 mod animated_image_tests;
 #[cfg(test)]

@@ -239,6 +239,7 @@ pub const PREMIERE: &[Entry] = &[
     ("playback.inToOutPreroll", "Shift+Space", ""),
     ("playback.toOut", "Ctrl+Space", ""),
     ("sequence.revealNested", "Cmd+Alt+F", ""),
+    ("clip.aiVideo", "Cmd+Alt+G", ""),
     ("timeline.selectClipAtPlayhead", "D", ""),
     ("timeline.selectNextClip", "Cmd+Down", ""),
     ("timeline.selectPrevClip", "Cmd+Up", ""),

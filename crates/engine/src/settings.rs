@@ -802,6 +802,14 @@ pub fn timebase_rate(v: &str) -> FrameRate {
 
 // ------------------------------------------------------------------ schema
 
+/// Settings ▸ AI Video.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct AiVideoPrefs {
+    /// MiniMax API key (platform.minimax.cn ▸ 账户管理 ▸ 接口密钥) for the AI Video provider.
+    pub minimax_api_key: String,
+}
+
 /// What kind of control a field is.
 #[derive(Clone, Copy, Debug)]
 pub enum Kind {
@@ -1357,6 +1365,7 @@ static CATEGORIES: &[Category] = &[
             b("trim.dynamicRippleUpdates", "Update timeline dynamically during ripple edits.", false),
         ],
     },
+    Category { id: "aiVideo", title: "AI Video", rows: &[f("aiVideo.minimaxApiKey", "MiniMax API Key", Kind::Text, true)] },
 ];
 
 /// Every field of every category (groups flattened), in dialog order.

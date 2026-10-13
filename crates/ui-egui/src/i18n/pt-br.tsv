@@ -2058,6 +2058,7 @@
 	Midtone Green Balance	Balanço de verde nos meios-tons
 	Midtone Red Balance	Balanço de vermelho nos meios-tons
 	Midtones Lightness	Luminosidade dos meios-tons
+	MiniMax API Key	Chave de API da MiniMax
 	Minimum	Mínimo
 	Minimum time	Tempo mínimo
 	Minimum time interval thinning	Redução por intervalo de tempo mínimo
@@ -2981,6 +2982,10 @@
 	AAC Audio	Áudio AAC
 	AAC Audio 48 kHz 320 kbps	Áudio AAC 48 kHz 320 kbps
 	MPEG-4 audio (.m4a), stereo 48 kHz AAC-LC at 320 kbps	Áudio MPEG-4 (.m4a), estéreo, AAC-LC de 48 kHz a 320 kbps
+	AI Video	Vídeo com IA
+	AI Video…	Vídeo com IA…
+	AI is generating…	A IA está gerando…
+	Describe the edit…	Descreva a edição…
 	AIFF	AIFF
 	AIFF 48 kHz 16-bit	AIFF 48 kHz 16 bits
 	AIFF, stereo 48 kHz 16-bit PCM	AIFF, estéreo, PCM de 48 kHz e 16 bits

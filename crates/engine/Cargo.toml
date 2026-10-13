@@ -17,6 +17,10 @@ whisper = ["filmcraft-speech/whisper"]
 speech-download = ["filmcraft-speech/download"]
 # Natural voices for Text to Speech: Kokoro-82M on candle (CPU) and their download.
 neural-voices = ["filmcraft-tts/kokoro", "speech-download"]
+# The MiniMax AI video provider (Clip ▸ AI Video): uploads and generation over HTTPS
+# (pure-Rust TLS: rustls + RustCrypto, OS certificate verification). Off by default and in
+# wasm builds; the desktop app enables it.
+minimax = ["dep:ureq", "dep:rustls", "dep:rustls-rustcrypto"]
 
 [dependencies]
 filmcraft-time = { workspace = true }
@@ -43,6 +47,9 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 log = { workspace = true }
 web-time = "1"
+ureq = { version = "3", default-features = false, features = ["rustls-no-provider", "platform-verifier", "json"], optional = true }
+rustls = { version = "0.23", default-features = false, optional = true }
+rustls-rustcrypto = { version = "0.0.2-alpha", optional = true }
 
 [dev-dependencies]
 filmcraft-testkit = { workspace = true }

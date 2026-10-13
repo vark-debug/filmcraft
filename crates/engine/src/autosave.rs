@@ -161,6 +161,8 @@ pub struct Preferences {
     pub plugins: settings::PluginPrefs,
     pub timeline: settings::TimelinePrefs,
     pub trim: TrimPrefs,
+    /// Clip ▸ AI Video (the MiniMax provider's API key).
+    pub ai_video: settings::AiVideoPrefs,
     pub essential_sound: EssentialSoundPrefs,
     pub guides: GuidePrefs,
     /// Voice-Over Record Settings (timeline track header ▸ right-click the microphone).
@@ -191,6 +193,7 @@ impl Default for Preferences {
             plugins: Default::default(),
             timeline: Default::default(),
             trim: Default::default(),
+            ai_video: Default::default(),
             essential_sound: Default::default(),
             guides: Default::default(),
             voice_over: Default::default(),

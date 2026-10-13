@@ -1904,6 +1904,7 @@ pub(crate) const CLIP_MENU: &[&[(&str, &str)]] = &[
         ("Synchronize…", "clip.synchronize"),
         ("Merge Clips…", "clip.mergeClips"),
         ("Nest…", "clip.nest"),
+        ("AI Video…", "clip.aiVideo"),
         ("Make Subsequence", "sequence.makeSubsequence"),
         ("Reveal Nested Sequence", "sequence.revealNested"),
         ("Multi-Camera", "clip.multicam"),

@@ -16,9 +16,11 @@ default = []
 whisper = ["filmcraft-engine/whisper", "filmcraft-engine/speech-download"]
 # Natural Text to Speech voices (Kokoro-82M on the CPU, downloaded on first use).
 neural-voices = ["filmcraft-engine/neural-voices"]
+# The MiniMax AI video provider (Clip ▸ AI Video).
+minimax = ["filmcraft-engine/minimax"]
 
 [dependencies]
-filmcraft-engine = { workspace = true }
+filmcraft-engine = { workspace = true, features = ["minimax"] }
 filmcraft-export = { workspace = true }
 filmcraft-project = { workspace = true }
 filmcraft-render = { workspace = true }

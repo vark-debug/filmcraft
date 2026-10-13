@@ -2045,6 +2045,7 @@
 	Midtone Green Balance	中間調のグリーンバランス
 	Midtone Red Balance	中間調のレッドバランス
 	Midtones Lightness	中間調の明度
+	MiniMax API Key	MiniMax APIキー
 	Minimum	最小値
 	Minimum time	最小時間
 	Minimum time interval thinning	最小時間間隔での間引き
@@ -2967,6 +2968,10 @@
 	AAC Audio	AAC Audio
 	AAC Audio 48 kHz 320 kbps	AAC Audio 48 kHz 320 kbps
 	MPEG-4 audio (.m4a), stereo 48 kHz AAC-LC at 320 kbps	MPEG-4 オーディオ (.m4a)、ステレオ 48 kHz AAC-LC 320 kbps
+	AI Video	AIビデオ
+	AI Video…	AIビデオ…
+	AI is generating…	AI生成中…
+	Describe the edit…	編集内容を入力…
 	AIFF	AIFF
 	AIFF 48 kHz 16-bit	AIFF 48 kHz 16-bit
 	AIFF, stereo 48 kHz 16-bit PCM	AIFF、ステレオ 48 kHz 16-bit PCM

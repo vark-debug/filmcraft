@@ -10,6 +10,10 @@
 //!
 //! Automation ids (`<p>` = the dialog prefix below, `<key>` = a parameter):
 //! - every dialog: `<p>.ok`, `<p>.cancel`, and `<p>.<key>` for each control;
+//!   AI Video `aiVideo.*` is the exception: an inline one-row prompt anchored above the selected
+//!   timeline clip (its bottom-right corner at the clip's top-left), with Enter or the OK button
+//!   submitting and Esc or a click anywhere else (the selected clip excepted) cancelling — no
+//!   title bar and no cancel button;
 //! - Paste Attributes `pasteAttributes.*`: `motion`, `opacity`, `timeRemapping`, `volume`,
 //!   `channelVolume`, `panner`, `effects`, `effect.<id>`, `scaleTimes`;
 //! - Remove Attributes `removeAttributes.*`: the same without `scaleTimes`;
@@ -51,6 +55,7 @@ fn meta(command: &str) -> Option<(&'static str, &'static str)> {
         "edit.removeAttributes" => (tl!("Remove Attributes"), "removeAttributes"),
         "file.newOfflineFile" => (tl!("New Offline File"), "offlineFile"),
         "clip.nest" => (tl!("Nested Sequence Name"), "nest"),
+        "clip.aiVideo" => (tl!("AI Video"), "aiVideo"),
         "clip.makeSubclip" => (tl!("Make Subclip"), "makeSubclip"),
         "clip.editSubclip" => (tl!("Edit Subclip"), "editSubclip"),
         "clip.audioChannels" => (tl!("Modify Clip: Audio Channels"), "audioChannels"),
@@ -167,6 +172,9 @@ fn defaults(app: &FilmcraftApp, id: &str) -> (Value, Value) {
             )
         }
         "clip.nest" => (json!({"name": filmcraft_engine::commands::next_nested_name(s)}), Value::Null),
+        // the anchor is the selected timeline clip (its rect is looked up each frame for the
+        // inline prompt); `fresh` suppresses the click-that-opened-cancels check on the first frame
+        "clip.aiVideo" => (json!({"prompt": ""}), json!({"anchorClip": s.state.selection.last().map(|c| c.0), "fresh": true})),
         "clip.makeSubclip" => {
             let d = filmcraft_engine::clip_ops::subclip_defaults(s, &json!({})).unwrap_or_else(|| json!({}));
             (json!({"name": d["name"], "startFrame": d["startFrame"], "endFrame": d["endFrame"], "restrictTrims": true}), json!({"fps": d["fps"]}))
@@ -307,12 +315,33 @@ pub fn show(app: &mut FilmcraftApp, ctx: &egui::Context) {
     };
     let mut elems: Elems = Vec::new();
     let mut action: Option<&'static str> = None;
+    let mut ai_video_fresh = false;
     let project_name = app.session.project.name.clone();
     // a never-saved project is saved through the Save dialog
     let can_save = app.session.path.is_some() || app.hooks.pick_save.is_some();
+    // AI Video floats above its clip: the selected clip's registered screen rect anchors the
+    // window (bottom-right corner on the clip's top-left); missing rect falls back to centered
+    let anchor = if d.command == "clip.aiVideo" {
+        d.info["anchorClip"].as_u64().and_then(|id| app.auto.find(&format!("timeline.clip.{id}"))).map(|e| {
+            let (r, (w, h)) = (e.rect, (e.rect[2], e.rect[3]));
+            egui::Rect::from_min_max(egui::pos2(r[0], r[1]), egui::pos2(r[0] + w, r[1] + h))
+        })
+    } else {
+        None
+    };
     // the title is translated; the window keeps one id whatever the interface language
     let id = egui::Id::new(("clip-dialog", pre));
-    egui::Window::new(title).id(id).collapsible(false).resizable(false).default_width(360.0).centered(ctx).show(ctx, |ui| {
+    let mut win = egui::Window::new(title).id(id).collapsible(false).resizable(false).default_width(360.0);
+    if d.command == "clip.aiVideo" {
+        win = win.title_bar(false).default_width(340.0);
+        match anchor {
+            Some(r) => win = win.pivot(egui::Align2::RIGHT_BOTTOM).fixed_pos(r.left_top()),
+            None => win = win.centered(ctx),
+        }
+    } else {
+        win = win.centered(ctx);
+    }
+    let response = win.show(ctx, |ui| {
         let p = &mut d.params;
         match d.command.as_str() {
             "edit.pasteAttributes" | "edit.removeAttributes" => {
@@ -390,6 +419,35 @@ pub fn show(app: &mut FilmcraftApp, ctx: &egui::Context) {
                         r.request_focus();
                     }
                 });
+            }
+            "clip.aiVideo" => {
+                // an inline one-row prompt: Enter or the OK button submits, clicking anywhere
+                // else (the selected clip excepted) cancels
+                let fresh = d.info["fresh"].as_bool() == Some(true);
+                d.info["fresh"] = Value::Null;
+                let mut v = p["prompt"].as_str().unwrap_or_default().to_string();
+                ui.horizontal(|ui| {
+                    let r = ui
+                        .add(egui::TextEdit::singleline(&mut v).desired_width(250.0).hint_text(tl!("Describe the edit…")).id(egui::Id::new("ai-video-prompt")));
+                    push(&mut elems, format!("{pre}.prompt"), &r, "Prompt");
+                    if r.changed() {
+                        p["prompt"] = json!(v);
+                    }
+                    if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                        action = Some("ok");
+                    }
+                    let first = egui::Id::new("ai-video-prompt-focused");
+                    if !ui.data(|d| d.get_temp::<bool>(first).unwrap_or(false)) {
+                        ui.data_mut(|d| d.insert_temp(first, true));
+                        r.request_focus();
+                    }
+                    let r = ui.button(tl!("OK"));
+                    push(&mut elems, format!("{pre}.ok"), &r, "OK");
+                    if r.clicked() {
+                        action = Some("ok");
+                    }
+                });
+                ai_video_fresh = fresh;
             }
             "clip.makeSubclip" | "clip.editSubclip" => {
                 let fps = d.info["fps"].as_f64().unwrap_or(24.0);
@@ -566,20 +624,31 @@ pub fn show(app: &mut FilmcraftApp, ctx: &egui::Context) {
         if !d.error.is_empty() {
             ui.colored_label(egui::Color32::from_rgb(0xe0, 0x60, 0x60), &d.error);
         }
-        ui.add_space(6.0);
-        ui.horizontal(|ui| {
-            let r = ui.button(tl!("Cancel"));
-            push(&mut elems, format!("{pre}.cancel"), &r, "Cancel");
-            if r.clicked() {
-                action = Some("cancel");
-            }
-            let r = ui.button(tl!("OK"));
-            push(&mut elems, format!("{pre}.ok"), &r, "OK");
-            if r.clicked() {
-                action = Some("ok");
-            }
-        });
+        if d.command != "clip.aiVideo" {
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                let r = ui.button(tl!("Cancel"));
+                push(&mut elems, format!("{pre}.cancel"), &r, "Cancel");
+                if r.clicked() {
+                    action = Some("cancel");
+                }
+                let r = ui.button(tl!("OK"));
+                push(&mut elems, format!("{pre}.ok"), &r, "OK");
+                if r.clicked() {
+                    action = Some("ok");
+                }
+            });
+        }
     });
+    // AI Video: a click anywhere outside the prompt (but not the click that opened it, and not
+    // the selected clip) cancels
+    if d.command == "clip.aiVideo"
+        && !ai_video_fresh
+        && response.as_ref().is_some_and(|r| r.response.clicked_elsewhere())
+        && !ctx.input(|i| i.pointer.interact_pos().is_some_and(|p| anchor.is_some_and(|r| r.contains(p))))
+    {
+        action = Some("cancel");
+    }
     for (id, r, l) in elems {
         app.auto.add(&id, r, &l);
     }
@@ -588,6 +657,7 @@ pub fn show(app: &mut FilmcraftApp, ctx: &egui::Context) {
     }
     if action.is_some() {
         ctx.data_mut(|d| d.remove::<bool>(egui::Id::new("nest-name-focused")));
+        ctx.data_mut(|d| d.remove::<bool>(egui::Id::new("ai-video-prompt-focused")));
     }
     match action {
         Some("cancel") => {
@@ -644,6 +714,10 @@ pub fn show(app: &mut FilmcraftApp, ctx: &egui::Context) {
 fn finish(d: &ClipDialogDraft) -> Value {
     let mut p = d.params.clone();
     match d.command.as_str() {
+        // the "AI is generating" overlay text, in the interface language
+        "clip.aiVideo" => {
+            p["pendingText"] = json!(tl!("AI is generating…"));
+        }
         "file.newOfflineFile" if p["name"].as_str().is_some_and(str::is_empty) => {
             p.as_object_mut().map(|m| m.remove("name"));
         }
