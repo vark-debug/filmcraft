@@ -93,3 +93,47 @@ fn focused_dock_resize_owns_arrows_and_keeps_pointer_dragging() {
     assert_eq!(first_size(&h), 428.0);
     assert_eq!(h.state().session.state.playheads, before_playheads);
 }
+
+fn press(h: &mut Harness<'_, FilmcraftApp>, key: Key) {
+    for pressed in [true, false] {
+        h.event(Event::Key { key, physical_key: None, pressed, repeat: false, modifiers: Modifiers::NONE });
+        step(h);
+    }
+    frames(h, 2);
+}
+
+#[test]
+fn space_plays_after_a_pane_is_resized_with_the_pointer() {
+    let mut session = Session::default();
+    session.execute("file.openDemoProject", json!({})).unwrap();
+    let app = FilmcraftApp::new(session);
+    let mut h = Harness::builder().with_size(vec2(1400.0, 900.0)).build_eframe(move |_| app);
+    frames(&mut h, 4);
+    h.state_mut().ui.focused = PanelKind::Timeline;
+    h.state_mut().ui.dock = DockNode::Split {
+        vertical: false,
+        size: SplitSize::FixedA(400.0),
+        a: Box::new(DockNode::Tabs { panels: vec![PanelKind::Project], active: 0 }),
+        b: Box::new(DockNode::Tabs { panels: vec![PanelKind::Timeline], active: 0 }),
+    };
+    frames(&mut h, 3);
+    let element = h.state().auto.find("dock.gutter.").unwrap();
+    let from = Rect::from_min_size(pos2(element.rect[0], element.rect[1]), vec2(element.rect[2], element.rect[3])).center();
+    h.event(Event::PointerMoved(from));
+    step(&mut h);
+    h.event(Event::PointerButton { pos: from, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE });
+    step(&mut h);
+    for offset in [5.0, 10.0, 15.0, 20.0] {
+        h.event(Event::PointerMoved(from + vec2(offset, 0.0)));
+        step(&mut h);
+    }
+    h.event(Event::PointerButton { pos: from + vec2(20.0, 0.0), button: PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE });
+    frames(&mut h, 3);
+    assert_eq!(first_size(&h), 420.0);
+    // The divider keeps keyboard focus so arrows can nudge it; that must not cost the editor its shortcuts.
+    assert_eq!(h.ctx.memory(|memory| memory.focused()), Some(Id::new(("dock-gutter", String::new()))));
+    press(&mut h, Key::Space);
+    assert!(h.state().playback.playing, "Space must start playback after resizing a pane (#1482)");
+    press(&mut h, Key::Space);
+    assert!(!h.state().playback.playing);
+}

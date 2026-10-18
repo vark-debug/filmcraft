@@ -760,6 +760,42 @@ fn media_browser_drag_imports_into_the_project_panel() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// Dragging several selected Media Browser files onto the Timeline (#1360) places every one of
+/// them, whether it was already in the project or is imported by the drag.
+#[test]
+fn media_browser_drag_places_every_selected_file() {
+    let dir = media_dir("drag-many");
+    let mut session = Session::default();
+    session.execute("file.openDemoProject", json!({})).unwrap();
+    let mut d = Driver::with(session);
+    d.ok("ui.set", json!({"workspace": "Editing"}));
+    d.ok("ui.panel.show", json!({"panel": "MediaBrowser"}));
+    d.exec("mediaBrowser.navigate", json!({"path": dir.to_string_lossy()}));
+    d.frames(3);
+    d.wait_for("mediaBrowser.entry.b-roll.wav");
+    let listed = d.exec("mediaBrowser.list", json!({}));
+    let path = |name: &str| listed["entries"].as_array().unwrap().iter().find(|e| e["name"] == json!(name)).unwrap()["path"].clone();
+    let (a, b) = (path("a-interview.wav"), path("b-roll.wav"));
+    // one file is already in the project, the other is imported by the drag
+    d.exec("mediaBrowser.import", json!({"paths": [a]}));
+    d.exec("mediaBrowser.select", json!({"paths": [a, b]}));
+    d.frames(2);
+    let n0 = d.app().session.project.items.len();
+    // clips named after each dragged file (a drop inside a long clip also splits that one)
+    let placed = |d: &mut Driver, name: &str| {
+        d.app().session.active_sequence().map_or(0, |q| q.video_tracks.iter().chain(&q.audio_tracks).flat_map(|t| &t.items).filter(|i| i.name == name).count())
+    };
+    assert_eq!((placed(&mut d, "a-interview.wav"), placed(&mut d, "b-roll.wav")), (0, 0));
+    let e = d.rect("mediaBrowser.entry.b-roll.wav");
+    let tl = d.rect("panel.Timeline");
+    d.ok("ui.drag", json!({"from": {"x": e[0] + 40.0, "y": e[1] + e[3] / 2.0}, "to": {"x": tl[0] + tl[2] * 0.6, "y": tl[1] + tl[3] * 0.75}, "steps": 20}));
+    d.frames(6);
+    assert_eq!(d.app().session.project.items.len(), n0 + 1, "only the new file is imported");
+    let status = d.app().ui.status.clone();
+    assert_eq!((placed(&mut d, "a-interview.wav"), placed(&mut d, "b-roll.wav")), (1, 1), "both files are placed; status: {status}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// Dragging one of several selected Project items onto the Timeline places all of them, back to
 /// back, as one undo step; an item outside the selection goes alone.
 #[test]

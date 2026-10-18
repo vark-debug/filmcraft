@@ -248,6 +248,8 @@
 	OMF…	OMF…
 	Offline File…	Offline-Datei…
 	Open Project…	Projekt öffnen…
+	Open Recent	Zuletzt geöffnete Dateien
+	Clear Recent Files	Zuletzt geöffnete Dateien leeren
 	OpenTimelineIO…	OpenTimelineIO…
 	Optical Flow	Optischer Fluss
 	Overwrite	Überschreiben
@@ -303,6 +305,7 @@
 	Review	Überprüfung
 	Right	Rechts
 	Ripple Delete	Löschen und Lücke schließen
+	Ripple Delete Head Frame	Kopfframes löschen und Lücke schließen
 	Ripple Sequence Markers	Sequenzmarker mitverschieben
 	Rose	Rosa
 	Safe Margins	Sicherheitsränder

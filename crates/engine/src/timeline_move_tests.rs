@@ -299,3 +299,116 @@ fn copy_leaves_the_originals_and_links_the_copies() {
     assert!(r.is_err());
     assert_eq!(s.active_sequence().unwrap().all_tracks().map(|t| t.items.len()).sum::<usize>(), 2);
 }
+
+#[test]
+fn new_track_moves_and_copies_are_one_atomic_edit() {
+    for copy in [false, true] {
+        let mut s = demo();
+        let (vt, v, at, a) = last_pair(&s);
+        let before = s.project.clone();
+        let count = s.history.undo.len();
+        let q = s.active_sequence().unwrap();
+        let counts = (q.video_tracks.len(), q.audio_tracks.len());
+        let r = s
+            .execute(
+                "timeline.move",
+                json!({"moves":[{"clip":v.id.0,"track":"new","time":v.start.0},{"clip":a.id.0,"track":"new","time":a.start.0}],"linked":false,"copy":copy}),
+            )
+            .unwrap();
+        let q = s.active_sequence().unwrap();
+        assert_eq!((q.video_tracks.len(), q.audio_tracks.len()), (counts.0 + 1, counts.1 + 1));
+        let new_v = q.video_tracks.last().unwrap();
+        let new_a = q.audio_tracks.last().unwrap();
+        assert_eq!(new_a.channels, before.sequence(s.state.active_sequence.unwrap()).unwrap().track(at).unwrap().channels);
+        assert_eq!((new_v.items[0].item, new_a.items[0].item), (v.item, a.item));
+        assert_eq!((new_v.items[0].start, new_a.items[0].start), (v.start, a.start));
+        if copy {
+            assert_eq!(state(&s, v.id), (vt, v.start));
+            assert_eq!(state(&s, a.id), (at, a.start));
+            assert_ne!(new_v.items[0].id, v.id);
+            assert!(new_v.items[0].link.is_some() && new_v.items[0].link == new_a.items[0].link);
+            assert_ne!(new_v.items[0].link, v.link);
+            assert_eq!(s.state.selection.len(), 2);
+            assert_eq!(r["copied"].as_array().unwrap().len(), 2);
+        } else {
+            assert_eq!(state(&s, v.id), (new_v.id, v.start));
+            assert_eq!(state(&s, a.id), (new_a.id, a.start));
+        }
+        q.check().unwrap();
+        assert_eq!(s.history.undo.len(), count + 1);
+        let after = s.project.clone();
+        s.execute("edit.undo", json!({})).unwrap();
+        assert_eq!(*s.project, *before);
+        s.execute("edit.redo", json!({})).unwrap();
+        assert_eq!(*s.project, *after);
+    }
+}
+
+#[test]
+fn new_track_group_keeps_clips_from_the_same_source_together() {
+    let mut s = demo();
+    let q = s.active_sequence().unwrap();
+    let clips = q.video_tracks[0].items[..2].to_vec();
+    let tracks = q.video_tracks.len();
+    let before = s.project.clone();
+    let moves: Vec<_> = clips.iter().map(|c| json!({"clip":c.id.0,"track":"new","time":c.start.0})).collect();
+    s.execute("timeline.move", json!({"moves":moves,"linked":false})).unwrap();
+    let q = s.active_sequence().unwrap();
+    assert_eq!(q.video_tracks.len(), tracks + 1);
+    let t = q.video_tracks.last().unwrap();
+    assert_eq!(t.items, clips);
+    q.check().unwrap();
+    s.execute("edit.undo", json!({})).unwrap();
+    assert_eq!(*s.project, *before);
+}
+
+#[test]
+fn refused_new_track_moves_preserve_document_and_both_history_stacks() {
+    let mut s = demo();
+    let (_, v, _, _) = last_pair(&s);
+    s.execute("timeline.setTrack", json!({"track":"V1","locked":true})).unwrap();
+    for moves in [
+        json!([{"clip":v.id.0,"track":"new","time":v.start.0}]),
+        json!([{"clip":u64::MAX,"track":"new","time":0}]),
+        json!([{"clip":v.id.0,"track":"new","time":i64::MAX}]),
+        json!([{"clip":v.id.0,"track":"new","time":0},{"clip":u64::MAX,"track":"V2","time":0}]),
+    ] {
+        let before = s.project.clone();
+        let history = s.execute("history.list", json!({})).unwrap();
+        assert!(s.execute("timeline.move", json!({"moves":moves,"linked":false})).is_err());
+        assert_eq!(*s.project, *before);
+        assert_eq!(s.execute("history.list", json!({})).unwrap(), history);
+    }
+    s.execute("edit.undo", json!({})).unwrap();
+    let before = s.project.clone();
+    let history = s.execute("history.list", json!({})).unwrap();
+    assert!(!history["redo"].as_array().unwrap().is_empty());
+    for moves in [
+        json!([{"clip":v.id.0,"track":"new","time":0},{"clip":u64::MAX,"track":"V2","time":0}]),
+        json!([{"clip":v.id.0,"track":"new","time":i64::MAX}]),
+        json!([{"clip":v.id.0,"track":"new"}]),
+        json!([{"clip":v.id.0,"track":"new","time":"invalid"}]),
+    ] {
+        assert!(s.execute("timeline.move", json!({"moves":moves,"linked":false})).is_err());
+        assert_eq!(*s.project, *before);
+        assert_eq!(s.execute("history.list", json!({})).unwrap(), history);
+    }
+}
+
+#[test]
+fn new_track_moves_respect_the_track_limit() {
+    let mut s = demo();
+    let (_, v, _, _) = last_pair(&s);
+    s.edit_sequence("Limit fixture", |q, ctx, _| {
+        while q.video_tracks.len() < crate::sequence_tools::MAX_TRACKS {
+            q.video_tracks.push(filmcraft_project::Track::new(TrackId(ctx.alloc()), filmcraft_project::TrackKind::Video, "Limit".into()));
+        }
+        Ok(())
+    })
+    .unwrap();
+    let before = s.project.clone();
+    let history = s.execute("history.list", json!({})).unwrap();
+    assert!(s.execute("timeline.move", json!({"moves":[{"clip":v.id.0,"track":"new","time":v.start.0}],"linked":false})).is_err());
+    assert_eq!(*s.project, *before);
+    assert_eq!(s.execute("history.list", json!({})).unwrap(), history);
+}

@@ -228,20 +228,24 @@ fn whole_frame_on_cpu(project: &Project, seq: &Sequence, t: Tick) -> bool {
 }
 
 /// Whether the frame of `seq` at `t` can be planned as layers: no adjustment layer and no
-/// transition the compositor cannot mix itself is showing.
-fn layered_at(project: &Project, seq: &Sequence, t: Tick) -> bool {
+/// transition the compositor cannot mix itself is showing (a transition into or out of an
+/// adjustment layer counts, also on the side of the cut where the other clip is).
+pub(crate) fn layered_at(project: &Project, seq: &Sequence, t: Tick) -> bool {
+    let adjustment = |it: &TrackItem| project.item(it.item).is_some_and(|p| matches!(p.kind, ItemKind::AdjustmentLayer { .. }));
     for tr in &seq.video_tracks {
         if !tr.enabled {
             continue;
         }
-        if let Some(trn) = tr.transitions.iter().find(|x| x.range().contains(t))
-            && !simple_transition(&trn.effect.effect)
-            && trn.effect.effect != "push"
-        {
-            return false;
+        if let Some(trn) = tr.transitions.iter().find(|x| x.range().contains(t)) {
+            if !simple_transition(&trn.effect.effect) && trn.effect.effect != "push" {
+                return false;
+            }
+            if [trn.from, trn.to].into_iter().flatten().filter_map(|c| tr.item(c)).any(adjustment) {
+                return false;
+            }
         }
         if let Some(it) = tr.item_at(t)
-            && project.item(it.item).is_some_and(|p| matches!(p.kind, ItemKind::AdjustmentLayer { .. }))
+            && adjustment(it)
         {
             return false;
         }
@@ -434,6 +438,7 @@ fn push_item(
                 clip_name: &item.name,
                 project: Some(project),
                 env: None,
+                frame_rate: seq.settings.frame_rate.as_f64(),
                 working: seq.settings.color.working,
             };
             let ops: Option<Vec<FxOp>> = chain.iter().map(|e| FxOp::eval(e, &cx, lw, lh).filter(FxOp::gpu_ok)).collect();

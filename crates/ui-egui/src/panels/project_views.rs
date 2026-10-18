@@ -526,10 +526,13 @@ pub fn list_view(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, v: &View
                 hp.rect_filled(cr, 0.0, t.hover);
             }
             let g = hp.layout_no_wrap(crate::i18n::t(&c.name).to_string(), Tokens::ui(f - 0.5), t.text_dim);
-            let gw = g.size().x;
-            hp.with_clip_rect(cr.shrink2(vec2(4.0, 0.0)).intersect(hr)).galley(pos2(cr.min.x + 6.0, cr.center().y - g.size().y / 2.0), g, t.text_dim);
+            // The sort arrow sits in the right of the header. Leave it a gap so it does not cover the name (#1295).
+            let arrow = if sort.column == c.name { 14.0 } else { 0.0 };
+            let label = cr.shrink2(vec2(4.0, 0.0));
+            let label = egui::Rect::from_min_max(label.min, pos2((label.max.x - arrow).max(label.min.x), label.max.y)).intersect(hr);
+            hp.with_clip_rect(label).galley(pos2(cr.min.x + 6.0, cr.center().y - g.size().y / 2.0), g, t.text_dim);
             if sort.column == c.name {
-                let ax = (cr.min.x + 10.0 + gw).min(cr.max.x - 8.0);
+                let ax = cr.max.x - 8.0;
                 let (a, b) = if sort.descending { (cr.center().y + 4.0, cr.center().y - 4.0) } else { (cr.center().y - 4.0, cr.center().y + 4.0) };
                 hp.line_segment([pos2(ax, b), pos2(ax, a)], Stroke::new(1.3, t.text_dim));
                 hp.line_segment([pos2(ax - 3.0, a + (b - a).signum() * 3.0), pos2(ax, a)], Stroke::new(1.3, t.text_dim));

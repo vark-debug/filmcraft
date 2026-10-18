@@ -234,6 +234,9 @@
 	Normalize Mix Track…	Normalizar faixa de mixagem…
 	Offline File…	Arquivo offline…
 	Open Project…	Abrir projeto…
+	Open Recent	Abrir recentes
+	Clear Recent Files	Limpar arquivos recentes
+	Recent	Recentes
 	Optical Flow	Fluxo óptico
 	Overwrite	Sobrescrever
 	Paste	Colar
@@ -286,6 +289,7 @@
 	Review	Revisão
 	Right	Direita
 	Ripple Delete	Excluir e fechar lacuna
+	Ripple Delete Head Frame	Excluir quadros iniciais e fechar lacuna
 	Ripple Sequence Markers	Deslocar marcadores da sequência
 	Rose	Rosa
 	Safe Margins	Margens de segurança
@@ -2925,6 +2929,10 @@
 	Sample Size	Tamanho da amostra
 	16 bit	16 bits
 	24 bit	24 bits
+	32 bit	32 bits
+	32 bit float	32 bits de ponto flutuante
+	FLAC stores whole-number samples only	O FLAC só armazena amostras inteiras
+	MXF export writes integer PCM only	A exportação MXF só grava PCM inteiro
 	Size / Opacity	Tamanho / opacidade
 	Image Overlay	Sobreposição de imagem
 	PNG or JPEG file	Arquivo PNG ou JPEG
@@ -3432,6 +3440,7 @@
 	in	entrada
 	The language changed but could not be saved: {e}	O idioma mudou, mas não pôde ser salvo: {e}
 	no Chinese font is installed on this system; the interface stays in English	nenhuma fonte chinesa está instalada neste sistema; a interface permanece em inglês
+	no Korean font is installed on this system; the interface stays in English	nenhuma fonte coreana está instalada neste sistema; a interface permanece em inglês
 	no Japanese font is installed on this system; the interface stays in English	nenhuma fonte japonesa está instalada neste sistema; a interface permanece em inglês
 	Show	Mostrar
 	Sort	Ordenar

@@ -130,7 +130,8 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, which: Which)
         (video_area, None)
     };
     if let (Some(wa), Some(item)) = (wave_area, source_item) {
-        monitor_view::waveform(app, ui, wa, item, time, duration, mark_in, mark_out);
+        let shown = ruler_shown(mv.time_zoom, origin, duration);
+        monitor_view::waveform(app, ui, wa, item, time, shown, mark_in, mark_out);
     }
     let show_picture = has_video && !wave_only && !grid_only;
     // Rulers along the top and left of the picture area.
@@ -295,10 +296,15 @@ pub fn show(app: &mut FilmcraftApp, ui: &mut egui::Ui, rect: Rect, which: Which)
         monitor_view::zoom_pan_input(app, ui, which, video_area, pic, display_w, ppp);
     }
     if which == Which::Program && show_picture {
-        eyedropper(app, ui, &pic_resp, pic, target, rate, time);
-        crate::panels::graphics::monitor_overlay(app, ui, pic, frame_size);
-        crate::panels::masks::monitor_overlay(app, ui, pic, frame_size);
-        crate::panels::transform_handles::monitor_overlay(app, ui, pic, frame_size);
+        // an armed eyedropper owns clicks on the picture: the overlays would sit on top and take
+        // them (the selected clip's transform handles cover it, #1023)
+        if app.ui.eyedropper.is_some() {
+            eyedropper(app, ui, &pic_resp, pic, target, rate, time);
+        } else {
+            crate::panels::graphics::monitor_overlay(app, ui, pic, frame_size);
+            crate::panels::masks::monitor_overlay(app, ui, pic, frame_size);
+            crate::panels::transform_handles::monitor_overlay(app, ui, pic, frame_size);
+        }
     }
     if show_picture {
         monitor_view::guides(app, ui, which, video_area, pic, frame_size);

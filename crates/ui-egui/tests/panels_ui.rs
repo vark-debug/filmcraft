@@ -10,6 +10,7 @@ use std::sync::Arc;
 use std::sync::mpsc::{Sender, channel};
 
 use egui_kittest::Harness;
+use egui_kittest::kittest::Queryable;
 use filmcraft_engine::Session;
 use filmcraft_ui_egui::FilmcraftApp;
 use filmcraft_ui_egui::control::ControlRequest;
@@ -570,4 +571,176 @@ fn focused_panel_outline_is_not_covered_by_child_backgrounds() {
             }
         }
     }
+}
+
+/// Select two different sources using the same Project-row and Timeline-clip clicks as an editor.
+fn inspector_selection_driver() -> (Driver, filmcraft_project::ItemId, filmcraft_project::ItemId, filmcraft_project::ClipId) {
+    let mut d = Driver::demo();
+    let seq = d.app().session.active_sequence().unwrap();
+    let a = seq.video_tracks[0].items[0].item;
+    let clip = seq.video_tracks[0].items.iter().find(|clip| clip.item != a).unwrap();
+    let (b, clip) = (clip.item, clip.id);
+    let bin = d
+        .app()
+        .session
+        .project
+        .root
+        .children
+        .iter()
+        .find_map(|entry| match entry {
+            filmcraft_project::BinEntry::Bin(bin) if bin.name == "Footage" => Some(bin.id.0),
+            _ => None,
+        })
+        .unwrap();
+    d.exec("project.view.set", json!({"view":"list"}));
+    d.ok("ui.menu.invoke", json!({"id":"window.panel.Metadata"}));
+    d.ok("ui.menu.invoke", json!({"id":"window.panel.Info"}));
+    d.click("panel.tab.Project");
+    d.ok("ui.menu.invoke", json!({"id":"projectPanel.openBin","params":{"bin":bin,"how":"inPlace"}}));
+    d.click(&format!("project.item.{}", a.0));
+    assert_eq!(d.app().session.state.project_selection, vec![a]);
+    d.click(&format!("timeline.clip.{}", clip.0));
+    assert!(d.app().session.state.selection.contains(&clip));
+    (d, a, b, clip)
+}
+
+#[test]
+fn metadata_keeps_the_timeline_item_when_its_tab_and_field_take_focus() {
+    let (mut d, a, b, _) = inspector_selection_driver();
+    let b_name = d.app().session.project.item(b).unwrap().name.clone();
+    assert_eq!(d.label("metadata.header"), format!("Clip: {b_name}"));
+    d.click("panel.tab.Metadata");
+    assert_eq!(d.label("metadata.header"), format!("Clip: {b_name}"), "inspector focus must not reactivate the old Project selection");
+    let before = serde_json::to_value(&d.app().session.project).unwrap();
+    let undo = d.app().session.history.undo.len();
+    d.click("metadata.field.Scene");
+    d.ok("ui.type", json!({"text":"42B"}));
+    d.ok("ui.key", json!({"key":"Enter"}));
+    d.frames(3);
+    assert_eq!(d.app().session.project.item(b).unwrap().metadata.get("Scene").map(String::as_str), Some("42B"));
+    assert!(!d.app().session.project.item(a).unwrap().metadata.contains_key("Scene"));
+    assert_eq!(d.app().session.history.undo.len(), undo + 1);
+    let after = serde_json::to_value(&d.app().session.project).unwrap();
+    d.exec("edit.undo", json!({}));
+    assert_eq!(serde_json::to_value(&d.app().session.project).unwrap(), before);
+    d.exec("edit.redo", json!({}));
+    assert_eq!(serde_json::to_value(&d.app().session.project).unwrap(), after);
+    d.snapshot("panels-metadata-timeline-selection", Some("metadata."));
+}
+
+#[test]
+fn info_follows_the_timeline_item_and_keeps_sequence_information() {
+    let (mut d, _, b, _) = inspector_selection_driver();
+    let name = d.app().session.project.item(b).unwrap().name.clone();
+    d.click("panel.tab.Info");
+    assert!(d.harness.query_by_label(&name).is_some(), "Info must show the selected Timeline item's name");
+    assert_eq!(d.label("info.item"), name, "the item header belongs to Info, not another panel");
+    assert!(!d.label("info.sequence").is_empty());
+    assert!(d.harness.query_by_label("Settings:").is_some(), "Info keeps its lower sequence-information section");
+    d.snapshot("panels-info-timeline-selection", None);
+}
+
+#[test]
+fn inspectors_follow_reselected_project_items_and_clear_without_stale_targets() {
+    let (mut d, a, b, clip) = inspector_selection_driver();
+    let a_name = d.app().session.project.item(a).unwrap().name.clone();
+    let b_name = d.app().session.project.item(b).unwrap().name.clone();
+    let timeline_selection = d.app().session.state.selection.clone();
+    let undo = d.app().session.history.undo.len();
+    let playhead = d.app().session.playhead();
+    d.click("panel.tab.Info");
+    assert_eq!(d.label("info.item"), b_name);
+    // Selection ownership also follows actual source clicks while both inspectors are hidden.
+    d.ok("ui.menu.invoke", json!({"id":"window.panel.Source"}));
+    d.click("panel.tab.Project");
+    d.click(&format!("project.item.{}", a.0));
+    d.click(&format!("timeline.clip.{}", clip.0));
+    d.ok("ui.menu.invoke", json!({"id":"window.panel.Metadata"}));
+    d.frames(3);
+    assert_eq!(d.label("metadata.header"), format!("Clip: {b_name}"));
+    d.click("panel.tab.Project");
+    d.click(&format!("project.item.{}", a.0));
+    d.click("panel.tab.Metadata");
+    assert_eq!(d.label("metadata.header"), format!("Clip: {a_name}"));
+    d.click("panel.tab.Info");
+    assert_eq!(d.label("info.item"), a_name);
+    assert_eq!(d.app().session.state.selection, timeline_selection);
+    assert_eq!(d.app().session.state.project_selection, vec![a]);
+    assert_eq!(d.app().session.history.undo.len(), undo, "inspector focus does not create edits");
+    assert_eq!(d.app().session.playhead(), playhead);
+
+    // Preserve Metadata's existing fallback in both directions when a selection is cleared.
+    d.click(&format!("timeline.clip.{}", clip.0));
+    d.ok("ui.key", json!({"key":"Cmd+Shift+A"}));
+    assert!(d.app().session.state.selection.is_empty());
+    d.click("panel.tab.Metadata");
+    assert_eq!(d.label("metadata.header"), format!("Clip: {a_name}"));
+    d.click("panel.tab.Info");
+    assert_eq!(d.label("info.item"), a_name);
+    d.click(&format!("timeline.clip.{}", clip.0));
+    d.click("panel.tab.Project");
+    d.ok("ui.key", json!({"key":"Cmd+Shift+A"}));
+    assert!(d.app().session.state.project_selection.is_empty());
+    d.click("panel.tab.Info");
+    assert_eq!(d.label("info.item"), b_name);
+    d.click("panel.tab.Metadata");
+    assert_eq!(d.label("metadata.header"), format!("Clip: {b_name}"));
+    d.ok("ui.set", json!({"theme":"light"}));
+    d.click("panel.tab.Info");
+    assert_eq!(d.label("info.item"), b_name, "theme and inspector changes keep the selection source");
+    d.snapshot("panels-info-timeline-selection-light", Some("info."));
+
+    d.click(&format!("timeline.clip.{}", clip.0));
+    d.ok("ui.key", json!({"key":"Cmd+Shift+A"}));
+    assert!(d.app().session.state.selection.is_empty());
+    d.click("panel.tab.Metadata");
+    assert!(d.has("metadata.empty"));
+    d.click("panel.tab.Info");
+    assert!(!d.has("info.item"));
+    assert!(!d.label("info.sequence").is_empty(), "active sequence details remain with no clip selected");
+
+    d.click("panel.tab.Project");
+    d.click(&format!("project.item.{}", a.0));
+    d.click("panel.tab.Info");
+    assert_eq!(d.label("info.item"), a_name);
+    d.exec("file.newProject", json!({"name":"Fresh inspector project"}));
+    d.frames(3);
+    assert!(!d.has("info.item"), "no item identity is retained from the old project");
+    assert!(!d.has("info.sequence"));
+    d.click("panel.tab.Metadata");
+    assert!(d.has("metadata.empty"));
+}
+
+#[test]
+fn inspector_source_defaults_when_loading_an_older_ui_state() {
+    let ui = filmcraft_ui_egui::state::UiState::default();
+    let mut saved = serde_json::to_value(&ui).unwrap();
+    saved["panels"].as_object_mut().unwrap().remove("inspectorSource");
+    let restored: filmcraft_ui_egui::state::UiState = serde_json::from_value(saved).unwrap();
+    assert_eq!(restored.panels.inspector_source, filmcraft_ui_egui::panels::panel_state::InspectorSource::Project);
+    assert_eq!(restored.panels.scopes, ui.panels.scopes);
+}
+
+#[test]
+fn middle_closing_an_inactive_project_tab_keeps_the_inspector_target() {
+    let (mut d, _, b, _) = inspector_selection_driver();
+    let name = d.app().session.project.item(b).unwrap().name.clone();
+    d.click("panel.tab.Info");
+    assert_eq!(d.label("info.item"), name);
+    assert!(d.has("panel.tab.Project"), "the inactive Project tab must be visible before closing it");
+    let project = serde_json::to_value(&d.app().session.project).unwrap();
+    let state = d.exec("state.inspect", json!({}));
+    let history = d.exec("history.list", json!({}));
+    let revision = d.app().session.revision;
+
+    d.ok("ui.click", json!({"id":"panel.tab.Project", "button":"middle"}));
+    d.frames(3);
+    assert!(!d.has("panel.tab.Project"), "middle-click closes the inactive tab");
+    assert_eq!(serde_json::to_value(&d.app().session.project).unwrap(), project);
+    assert_eq!(d.exec("state.inspect", json!({})), state);
+    assert_eq!(d.exec("history.list", json!({})), history);
+    assert_eq!(d.app().session.revision, revision);
+    let focused = d.app().ui.focused;
+    let source = d.app().ui.panels.inspector_source;
+    assert_eq!(d.label("info.item"), name, "closing a tab must not select its stale item; focused={focused:?}, source={source:?}");
 }

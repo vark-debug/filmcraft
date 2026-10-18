@@ -774,65 +774,6 @@ pub(crate) fn place_on_new_tracks(s: &mut Session, p: &Value) -> Result<Value> {
     }
 }
 
-/// `timeline.move` names `"new"` as the `track` of a move.
-pub(crate) fn move_wants_new_track(p: &Value) -> bool {
-    p.get("moves").and_then(Value::as_array).is_some_and(|m| m.iter().any(is_new_move))
-}
-
-/// One move of `timeline.move` with `"track":"new"`.
-fn is_new_move(m: &Value) -> bool {
-    m.get("track").and_then(Value::as_str).is_some_and(|v| v.eq_ignore_ascii_case("new"))
-}
-
-/// `timeline.move` with `"track":"new"` on some moves (#1104: a clip dragged into the empty space
-/// above the top video track or below the last audio track): one track is added after the last one
-/// of each kind the `"new"` clips come from, they all land on it, and the track and the move are
-/// one undo step. When the move fails, the new tracks go away again.
-pub(crate) fn move_to_new_tracks(s: &mut Session, p: &Value) -> Result<Value> {
-    let cmd = "timeline.move";
-    let q = s.active_sequence().ok_or(EngineError::NoSequence)?;
-    let (mut new_v, mut new_a) = (false, false);
-    for m in p.get("moves").and_then(Value::as_array).into_iter().flatten().filter(|m| is_new_move(m)) {
-        let clip = crate::commands::clip_p(m, "clip").ok_or_else(|| bad(cmd, "need `clip` in each move"))?;
-        let (track, _) = q.find_item(clip).ok_or_else(|| bad(cmd, "no such clip"))?;
-        if q.video_tracks.iter().any(|t| t.id == track) {
-            new_v = true;
-        } else {
-            new_a = true;
-        }
-    }
-    let added = add_tracks(s, &json!({"video": u64::from(new_v), "audio": u64::from(new_a)}))?;
-    let mark = s.history.undo.len();
-    let (video, audio) = (added.get("video").and_then(|v| v.get(0)).cloned(), added.get("audio").and_then(|v| v.get(0)).cloned());
-    let mut moves = p.get("moves").and_then(Value::as_array).cloned().unwrap_or_default();
-    for m in moves.iter_mut().filter(|m| is_new_move(m)) {
-        let on_video = crate::commands::clip_p(m, "clip")
-            .and_then(|c| s.active_sequence().and_then(|q| q.find_item(c).map(|(t, _)| q.video_tracks.iter().any(|v| v.id == t))))
-            .unwrap_or(true);
-        m["track"] = if on_video { video.clone() } else { audio.clone() }.unwrap_or(Value::Null);
-    }
-    let mut q = p.clone();
-    q["moves"] = Value::Array(moves);
-    let run = crate::commands::find(cmd).ok_or_else(|| EngineError::UnknownCommand(cmd.into()))?.run;
-    match run(s, &q) {
-        Ok(v) => {
-            // the new tracks and the move are one undo step
-            if mark >= 1
-                && s.history.undo.len() == mark + 1
-                && let (Some((label, _)), Some((_, before))) = (s.history.undo.pop(), s.history.undo.pop())
-            {
-                s.history.undo.push((label, before));
-            }
-            Ok(v)
-        }
-        Err(e) => {
-            s.undo();
-            s.history.redo.pop();
-            Err(e)
-        }
-    }
-}
-
 fn delete_tracks(s: &mut Session, p: &Value) -> Result<Value> {
     let seq_id = s.state.active_sequence.ok_or(EngineError::NoSequence)?;
     let q = s.active_sequence().ok_or(EngineError::NoSequence)?;

@@ -275,6 +275,52 @@ fn real_panel_drag_merges_splits_floats_and_redocks_without_editing_documents() 
     assert!(h.state().ui_error.is_none());
 }
 
+#[test]
+fn dropping_on_the_window_edge_docks_beside_the_whole_workspace() {
+    let mut app = FilmcraftApp::new(Session::default());
+    app.ui.dock = layout().root;
+    let mut h = Harness::builder().with_size(vec2(1200.0, 760.0)).build_eframe(move |_| app);
+    for _ in 0..4 {
+        step(&mut h);
+    }
+    let from = rect(&h, "panel.tab.Info").center();
+    let leftmost = rect(&h, "panel.Info");
+    // The outer edge of the leftmost group: without the window-edge zone this splits only that group.
+    drag(&mut h, from, pos2(leftmost.left() + 2.0, leftmost.center().y), Modifiers::NONE);
+    assert_eq!(
+        h.state().ui.dock,
+        DockNode::Split {
+            vertical: false,
+            size: SplitSize::Ratio(0.25),
+            a: Box::new(DockNode::Tabs { panels: vec![PanelKind::Info], active: 0 }),
+            b: Box::new(DockNode::Split {
+                vertical: false,
+                size: SplitSize::FixedA(400.0),
+                a: Box::new(DockNode::Tabs { panels: vec![PanelKind::Project, PanelKind::History], active: 1 }),
+                b: Box::new(DockNode::Tabs { panels: vec![PanelKind::Source, PanelKind::Program], active: 1 }),
+            }),
+        }
+    );
+}
+
+#[test]
+fn dock_panel_without_anchor_docks_along_a_workspace_edge() {
+    let mut app = FilmcraftApp::new(Session::default());
+    app.ui.dock = layout().root;
+    let ctx = egui::Context::default();
+    menus::invoke(&mut app, &ctx, "window.dockPanel", json!({"panel": "Program", "zone": "bottom"})).unwrap();
+    let DockNode::Split { vertical: true, size: SplitSize::Ratio(ratio), a, b } = &app.ui.dock else { panic!("root not split: {:?}", app.ui.dock) };
+    assert_eq!(*ratio, 0.75);
+    assert_eq!(**b, DockNode::Tabs { panels: vec![PanelKind::Program], active: 0 });
+    assert!(!a.contains(PanelKind::Program) && a.contains(PanelKind::Source) && a.contains(PanelKind::Info));
+    let before = app.ui.dock.clone();
+    assert!(menus::invoke(&mut app, &ctx, "window.dockPanel", json!({"panel": "Info", "zone": "center"})).is_err());
+    assert_eq!(app.ui.dock, before);
+    app.ui.dock = DockNode::Tabs { panels: vec![PanelKind::Project], active: 0 };
+    assert!(menus::invoke(&mut app, &ctx, "window.dockPanel", json!({"panel": "Project", "zone": "left"})).is_err());
+    assert_eq!(app.ui.dock, DockNode::Tabs { panels: vec![PanelKind::Project], active: 0 });
+}
+
 fn same_group(root: &DockNode, first: PanelKind, second: PanelKind) -> bool {
     match root {
         DockNode::Tabs { panels, .. } => panels.contains(&first) && panels.contains(&second),

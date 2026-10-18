@@ -177,7 +177,7 @@ Time is in ticks (254 016 000 000 per second); commands also accept `seconds`, `
 | Command | Parameters | Result |
 | --- | --- | --- |
 | `window.floatPanel` | `{panel?, rect?: [x,y,width,height]}` | Move an existing panel into a floating group. Omitted panel uses the focused panel; omitted rect uses a centered 420×320 group. |
-| `window.dockPanel` | `{panel?, anchor, zone?: "center"\|"left"\|"right"\|"top"\|"bottom", before?}` | Move into the anchor's tab group or a side split; `before` names an existing destination tab for precise ordering. Floating destinations accept tabs only. |
+| `window.dockPanel` | `{panel?, anchor?, zone?: "center"\|"left"\|"right"\|"top"\|"bottom", before?}` | Move into the anchor's tab group or a side split; `before` names an existing destination tab for precise ordering. Floating destinations accept tabs only. Without `anchor`, a side `zone` docks the panel along that edge of the whole workspace, at a quarter of its width or height. |
 | `window.closePanel` | `{panel?}` | Close a docked or floating panel without closing its project documents. |
 
 Invalid source/target identities and non-finite or out-of-range geometry return an error with

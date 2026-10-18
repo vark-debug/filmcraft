@@ -237,6 +237,9 @@
 	Normalize Mix Track…	Normalisasi Trek Mix…
 	Offline File…	Berkas Offline…
 	Open Project…	Buka Proyek…
+	Open Recent	Terakhir Dibuka
+	Clear Recent Files	Hapus Daftar Berkas Terakhir
+	Recent	Terbaru
 	Optical Flow	Aliran Optik
 	Overwrite	Timpa
 	Paste	Tempel
@@ -289,6 +292,7 @@
 	Review	Tinjauan
 	Right	Kanan
 	Ripple Delete	Hapus Ripple
+	Ripple Delete Head Frame	Hapus Ripple Frame Awal
 	Ripple Sequence Markers	Ripple Penanda Sekuens
 	Rose	Merah Mawar
 	Safe Margins	Margin Aman
@@ -2928,6 +2932,10 @@
 	Sample Size	Ukuran Sampel
 	16 bit	16 bit
 	24 bit	24 bit
+	32 bit	32 bit
+	32 bit float	32 bit titik mengambang
+	FLAC stores whole-number samples only	FLAC hanya menyimpan sampel bilangan bulat
+	MXF export writes integer PCM only	Ekspor MXF hanya menulis PCM bilangan bulat
 	Size / Opacity	Ukuran / Opasitas
 	Image Overlay	Overlay Gambar
 	PNG or JPEG file	Berkas PNG atau JPEG
@@ -3435,6 +3443,7 @@
 	in	masuk
 	The language changed but could not be saved: {e}	Bahasa telah diubah tetapi tidak dapat disimpan: {e}
 	no Chinese font is installed on this system; the interface stays in English	tidak ada font Tionghoa yang terpasang di sistem ini; antarmuka tetap dalam bahasa Inggris
+	no Korean font is installed on this system; the interface stays in English	tidak ada font Korea yang terpasang di sistem ini; antarmuka tetap dalam bahasa Inggris
 	no Japanese font is installed on this system; the interface stays in English	tidak ada font Jepang yang terpasang di sistem ini; antarmuka tetap dalam bahasa Inggris
 	Show	Tampilkan
 	Sort	Urutkan

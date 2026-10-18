@@ -225,6 +225,9 @@
 	Normalize Mix Track…	标准化混音轨道…
 	Offline File…	脱机文件…
 	Open Project…	打开项目…
+	Open Recent	打开最近文件
+	Clear Recent Files	清除最近文件
+	Recent	最近使用
 	Optical Flow	光流
 	Overwrite	覆盖
 	Paste	粘贴
@@ -277,6 +280,7 @@
 	Review	审阅
 	Right	右
 	Ripple Delete	波纹删除
+	Ripple Delete Head Frame	波纹删除头部帧
 	Ripple Sequence Markers	波纹序列标记
 	Rose	玫瑰红
 	Safe Margins	安全边距
@@ -2906,6 +2910,10 @@
 	Sample Size	采样大小
 	16 bit	16 位
 	24 bit	24 位
+	32 bit	32 位
+	32 bit float	32 位浮点
+	FLAC stores whole-number samples only	FLAC 只能存储整数采样
+	MXF export writes integer PCM only	MXF 导出仅写入整数 PCM
 	Size / Opacity	大小 / 不透明度
 	Image Overlay	图像叠加
 	PNG or JPEG file	PNG 或 JPEG 文件
@@ -3418,6 +3426,7 @@
 	in	入
 	The language changed but could not be saved: {e}	语言已更改但无法保存：{e}
 	no Chinese font is installed on this system; the interface stays in English	此系统未安装中文字体；界面保持英文
+	no Korean font is installed on this system; the interface stays in English	此系统未安装韩文字体；界面保持英文
 	no Japanese font is installed on this system; the interface stays in English	此系统未安装日语字体；界面保持英文
 	Show	显示
 	Sort	排序
@@ -3575,3 +3584,9 @@
 	Export the labels to a preset file…	将标签导出为预设文件…
 	Show the presets folder	显示预设文件夹
 	Delete this preset	删除此预设
+	Opens in your web browser: {url}	在网页浏览器中打开：{url}
+	Saves this session's log and shows it in your file manager.	保存本次会话的日志并在文件管理器中显示。
+	Shows a report on this computer.	显示本机的报告。
+	Shows the version, community links and credits in a FilmCraft window.	在 FilmCraft 窗口中显示版本、社区链接和致谢。
+	Couldn't open your web browser	无法打开网页浏览器
+	Open this address in your browser yourself:	请自行在浏览器中打开此地址：

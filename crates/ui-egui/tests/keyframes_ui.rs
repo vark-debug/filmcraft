@@ -311,6 +311,32 @@ fn clicking_a_lane_keyframe_selects_only_that_keyframe() {
     assert_eq!(selection(&mut d), json!([]), "a deleted keyframe is not selected");
 }
 
+#[test]
+fn select_all_in_effect_controls_selects_its_keyframes_not_the_clips() {
+    // #1241
+    let (mut d, clip) = Driver::demo();
+    d.seek(1.0);
+    for param in ["scale", "position"] {
+        d.exec("effects.addKeyframe", json!({"clip": clip.id, "effect": "motion", "param": param}));
+    }
+    d.seek(2.0);
+    d.exec("effects.addKeyframe", json!({"clip": clip.id, "effect": "motion", "param": "scale"}));
+    let clips = d.ok("ui.inspect", json!({}))["selection"].clone();
+    d.ok("ui.set", json!({"focused": "EffectControls"}));
+    d.ok("ui.key", json!({"key": "Cmd+A"}));
+    d.frames(2);
+    let inspect = d.ok("ui.inspect", json!({}));
+    let keys = inspect["ui"]["keyframe_selection"].as_array().cloned().unwrap_or_default();
+    assert_eq!(keys.len(), 3, "{keys:?}");
+    assert!(keys.iter().all(|k| k["clip"] == clip.id));
+    assert_eq!(inspect["selection"], clips, "the Timeline selection is unchanged");
+    // with the Timeline focused, Select All still selects the clips
+    d.ok("ui.set", json!({"focused": "Timeline"}));
+    d.ok("ui.key", json!({"key": "Cmd+A"}));
+    d.frames(2);
+    assert!(d.ok("ui.inspect", json!({}))["selection"].as_array().map_or(0, Vec::len) > clips.as_array().map_or(0, Vec::len));
+}
+
 /// Effect Controls' divider (#643): dragging it widens the effect list or the keyframe area, each
 /// keeping a minimum width, and the width stays. The mouse wheel scrolls the rows over the
 /// keyframe area too, not only over the effect list.

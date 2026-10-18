@@ -419,3 +419,30 @@ fn escape_mid_drag_reverts_the_field_and_keeps_the_dialog() {
     assert!(d.app().ui.clip_dialog.is_none(), "Escape with no drag closes the dialog");
     assert_eq!(d.v1(0).speed, 1.0, "and applies nothing");
 }
+
+#[test]
+fn clip_context_menu_adds_a_marker_at_the_playhead_with_one_undo() {
+    for audio in [false, true] {
+        let mut d = Driver::new();
+        d.exec("markers.clearAll", json!({}));
+        d.exec("playhead.set", json!({"frame": 35}));
+        let seq = d.app().session.active_sequence().unwrap();
+        let clip = if audio { seq.audio_tracks[0].items[0].id } else { seq.video_tracks[0].items[0].id };
+        let playhead = d.app().session.playhead();
+        let before = d.app().session.project.clone();
+        let history = d.app().session.history.undo.len();
+        d.ok("ui.click", json!({"id": format!("timeline.clip.{}", clip.0), "button": "right", "fy": 0.3}));
+        d.frames(3);
+        assert!(d.has("timeline.clipMenu.markers.add"), "Add Marker is available on video and audio clips");
+        d.click("timeline.clipMenu.markers.add");
+        let markers = &d.app().session.active_sequence().unwrap().markers;
+        assert_eq!(markers.len(), 1);
+        assert_eq!(markers[0].start, playhead);
+        assert_eq!(d.app().session.history.undo.len(), history + 1);
+        let after = d.app().session.project.clone();
+        d.exec("edit.undo", json!({}));
+        assert_eq!(serde_json::to_value(&*d.app().session.project).unwrap(), serde_json::to_value(&*before).unwrap());
+        d.exec("edit.redo", json!({}));
+        assert_eq!(serde_json::to_value(&*d.app().session.project).unwrap(), serde_json::to_value(&*after).unwrap());
+    }
+}

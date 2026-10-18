@@ -441,6 +441,30 @@ fn guides_masks_and_graphics_take_the_left_button_only() {
     d.drag_from(at, 40.0, 20.0);
     assert_ne!(project(&d), before, "the left button still moves the layer");
 }
+/// A picture moved past the edge of the frame (and the monitor) keeps its handles in reach: the
+/// ones that would be off the monitor stop at its edge, and dragging them still scales (#1393).
+#[test]
+fn handles_stay_in_reach_when_the_picture_is_past_the_edge() {
+    let mut d = Driver::demo();
+    let (clip, _) = d.first_clip();
+    // centred on the frame's bottom-right corner: the right and bottom handles are beyond it
+    d.exec("effects.setParam", json!({"clip": clip, "effect": "motion", "param": "position", "value": [1920.0, 1080.0]}));
+    d.click("effectControls.effect.motion");
+    let pic = d.rect("program.picture");
+    let (cx, cy) = d.center("program.transform.handle.0");
+    assert!(near((cx, cy), (pic[0] + pic[2] / 2.0, pic[1] + pic[3] / 2.0)), "the top-left corner is at the frame's centre");
+    let (hx, hy) = d.center("program.transform.handle.2");
+    assert!(hx < 1600.0 && hy < 980.0, "the bottom-right handle is on screen: ({hx}, {hy})");
+    // (its true place is about 280 points right of the picture, past the monitor)
+    assert!(hx <= pic[0] + pic[2] + 40.0 && hy <= pic[1] + pic[3] + 40.0, "and on the monitor: ({hx}, {hy}), picture {pic:?}");
+    let p0 = d.point(clip, "motion", "position");
+    d.drag("program.transform.handle.2", -30.0, -30.0);
+    let s = d.num(clip, "motion", "scale");
+    assert!(s < 95.0, "the bottom-right handle scales: {s}");
+    assert_eq!(d.point(clip, "motion", "position"), p0, "the picture is not moved");
+    d.shot("transform-past-the-edge");
+}
+
 /// Anywhere just outside the box rotates, beside the middle of an edge as beside a corner.
 #[test]
 fn rotating_from_beside_an_edge() {

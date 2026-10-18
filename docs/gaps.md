@@ -85,7 +85,9 @@ platforms** G4, G9, G17; **performance** G16; **ecosystem** G11; **measurement**
   (Windows), then a software adapter (WARP, lavapipe, llvmpipe) with CPU compositing, and keeps
   the mode that works; a start-up error wgpu reports moves on in the same process. A fallback mode
   shows a notice with Use Default Graphics; `--graphics default|dx12|software` picks a mode by
-  hand. An explicit `WGPU_BACKEND` stays in charge.
+  hand. An explicit `WGPU_BACKEND` stays in charge. On Windows, a GPU that Vulkan lists through two
+  installed versions of one driver (GPUs on different driver packages) draws with the newer one
+  instead of dying inside the stale one (`filmcraft_gpu::adapter`).
 - **Missing:** a launch that never fails, and CI that runs the gates.
 - **Evidence:** open issues: macOS 12 Monterey aborts on a missing VideoToolbox symbol (#468,
   #661, #655), Intel UHD graphics (`igvk64.dll`, #512), Windows 11 does not run or fails after setup
@@ -178,19 +180,21 @@ platforms** G4, G9, G17; **performance** G16; **ecosystem** G11; **measurement**
 
 - **Have:** E-AC-3 (Dolby Digital Plus) in MP4, MOV, Matroska and MPEG-TS (#647): independent
   substream, 1–6 blocks per syncframe, spectral extension. MP1 / MP2 (MPEG audio Layer I / II):
-  own decoder (#809) in raw files, MP4 and MOV (#800), MPEG-TS / PS and Matroska, including the
+  own decoder (#809) in raw files, MP4 and MOV (#800), MPEG-TS / PS and Matroska (`A_MPEG/L1` and `L2`, #1402), including the
   bit rate / mode combinations ISO/IEC 11172-3 disallows but ffmpeg writes (its mono default is
-  384 kbit/s). OpenEXR stills and image
+  384 kbit/s). Radiance HDR (`.hdr`) stills and image sequences (#1407): RGBE as linear float, flat
+  and run-length scan lines, any axis order. OpenEXR stills and image
   sequences (#828): scan-line, uncompressed / RLE / ZIPS / ZIP, half / float / uint, RGB(A) or
-  luminance, decoded to linear float frames and bit-exact against ffmpeg.
-- **Missing:** free-format MPEG audio, MP1 in Matroska (`A_MPEG/L1`), E-AC-3 adaptive hybrid
+  luminance, decoded to linear float frames and bit-exact against ffmpeg; PXR24 (lossy 24-bit
+  float, 16 lines per chunk) decodes too, bit-exact against OpenEXR (via OpenImageIO, #828).
+- **Missing:** free-format MPEG audio, E-AC-3 adaptive hybrid
   transform, enhanced coupling and the extra channels of 7.1 dependent substreams (played as the
   5.1 core), AVI (#598; listed as an extension but no
   demuxer), WMV / ASF, DV / DVCPRO / DV100, MPEG-4 Part 2, FLAC in MP4 (#603), camera RAW (R3D
   incl. R3D NE, ARRIRAW, Sony RAW / X-OCN, Canon RAW, BRAW, ProRes RAW; #345, #383), JPEG 2000 /
   JPEG XS MXF, the rest of CinemaDNG (lossy / JPEG XL DNG, MXF-wrapped, opcode lists, Raw
-  settings; DNG frames and folders import since #1065); stills: PSD, EXR beyond scan-line RLE / ZIP (PIZ, PXR24, B44, DWA,
-  tiled, multi-part, deep), HEIF / HEIC, Radiance HDR,
+  settings; DNG frames and folders import since #1065); stills: PSD, EXR beyond scan-line RLE / ZIP / PXR24 (PIZ, B44, DWA,
+  tiled, multi-part, deep), HEIF / HEIC,
   AI / EPS, and the rarer DPX layout, run-length encoding (Targa and DPX stills and sequences import
   since #821, packed 10/12-bit and Y'CbCr DPX since #841, deeper than 8 bits kept at 8); transparent
   video (#402); Sony start timecode in `rtmd` (#460); stereo 3D flag (#500); MKV multi-audio (#601).
@@ -235,11 +239,14 @@ platforms** G4, G9, G17; **performance** G16; **ecosystem** G11; **measurement**
   fallback fonts and shows captions in reading order, but other names and fields keep egui's
   left-to-right run order; Arabic titles reported broken, #395),
   German beyond menus (#490), Korean (#508; needs Hangul fonts in craft-fonts),
-  Vietnamese; Premiere also ships Italian and Russian. Engine errors,
+  Vietnamese; Premiere also ships Russian. Engine errors,
   CLI and MCP stay English. No language has a recorded native-speaker review.
 - **Done:** Indonesian (#867): `id.tsv` has every entry of the Spanish catalog (~100%), in Edit ▸
   Language, Settings ▸ General and the native macOS menu; System Language picks it for `id-*` (and
   legacy `in-*`) locales. Native-speaker review welcome.
+- **Done:** Italian: `it.tsv` has every entry of the Spanish catalog (~100%), in Edit ▸ Language,
+  Settings ▸ General and the native macOS menu; System Language picks it for `it-*` locales.
+  Native-speaker review welcome.
 - **Estimate:** 150–230 h. Doc: [localization-parity.md](localization-parity.md).
 
 ## G15. Interchange never validated in Avid / Pro Tools; slow XML import
@@ -278,7 +285,7 @@ platforms** G4, G9, G17; **performance** G16; **ecosystem** G11; **measurement**
 
 - **Missing:** Warp Stabilizer is 2-D (Premiere's is 3-D subspace), Morph Cut has no face tracking
   (and occlusion edges are soft), Lumetri HDR-aware maths, multicam paging beyond 16 angles,
-  redesigned 26.0 mask tools (Shift-constrained vertex and whole-mask drags; a stored, re-editable
+  redesigned 26.0 mask tools (a stored, re-editable
   corner radius: rounding bakes fillets into the path, so a rounded corner cannot be re-rounded later).
 - **Have:** Optical Flow time interpolation synthesises motion-compensated in-between frames (dense
   coarse-to-fine Lucas–Kanade, CPU; #780); Morph Cut morphs the subject along that optical flow
@@ -286,7 +293,8 @@ platforms** G4, G9, G17; **performance** G16; **ecosystem** G11; **measurement**
   Setting applied as a parameter preset (#458); rectangle and polygon masks round their corners
   with circular fillets (`masks.add` `cornerRadius`, `masks.roundCorners`, every path keyframe;
   #813), from an on-monitor corner-roundness handle with a live preview (one undo step per drag;
-  #844); Shift snaps pen mask segments and dragged-out Bézier handles to 45° steps (#853).
+  #844); Shift snaps pen mask segments and dragged-out Bézier handles to 45° steps (#853), and
+  Shift constrains vertex and whole-mask drags to 45° steps from the press point (#1408).
 - **Estimate:** 60–110 h.
 
 ## G19. Speech to text off in release builds
@@ -306,3 +314,5 @@ platforms** G4, G9, G17; **performance** G16; **ecosystem** G11; **measurement**
 | Date | Change | Summary |
 |---|---|---|
 | 2026-10-10 | major | Created from ROADMAP.md's "Where we are lacking" (2026-10-05); re-ranked against Premiere 26.5.2 and the 188 open issues; added `.prproj`, 10-bit / 4:2:2 camera decode, launch crashes and missing PR CI, localization, delivery formats |
+| 2026-10-12 | minor | G10: MP1 (`A_MPEG/L1`) in Matroska imports (#1402) |
+| 2026-10-12 | minor | G10: OpenEXR PXR24 import |

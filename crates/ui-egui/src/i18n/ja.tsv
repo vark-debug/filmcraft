@@ -231,6 +231,9 @@
 	Normalize Mix Track…	ミックストラックをノーマライズ…
 	Offline File…	オフラインファイル…
 	Open Project…	プロジェクトを開く…
+	Open Recent	最近使ったファイルを開く
+	Clear Recent Files	最近使ったファイルを消去
+	Recent	最近
 	Optical Flow	オプティカルフロー
 	Overwrite	上書き
 	Paste	貼り付け
@@ -283,6 +286,7 @@
 	Review	レビュー
 	Right	右
 	Ripple Delete	リップル削除
+	Ripple Delete Head Frame	先頭フレームをリップル削除
 	Ripple Sequence Markers	シーケンスマーカーをリップル
 	Rose	ローズ
 	Safe Margins	セーフマージン
@@ -2912,6 +2916,10 @@
 	Sample Size	サンプルサイズ
 	16 bit	16 ビット
 	24 bit	24 ビット
+	32 bit	32 ビット
+	32 bit float	32 ビット浮動小数点
+	FLAC stores whole-number samples only	FLAC は整数サンプルのみ保存できます
+	MXF export writes integer PCM only	MXF 書き出しは整数 PCM のみです
 	Size / Opacity	サイズ / 不透明度
 	Image Overlay	画像のオーバーレイ
 	PNG or JPEG file	PNG または JPEG ファイル
@@ -3424,6 +3432,7 @@
 	in	イン
 	The language changed but could not be saved: {e}	表示言語は変更されましたが、保存できませんでした: {e}
 	no Chinese font is installed on this system; the interface stays in English	このシステムには中国語フォントがインストールされていないため、表示は英語のままです
+	no Korean font is installed on this system; the interface stays in English	このシステムには韓国語フォントがインストールされていないため、表示は英語のままです
 	no Japanese font is installed on this system; the interface stays in English	このシステムには日本語フォントがインストールされていないため、表示は英語のままです
 	Show	表示
 	Sort	並べ替え
@@ -3599,3 +3608,9 @@
 	Export the labels to a preset file…	ラベルをプリセットファイルに書き出し…
 	Show the presets folder	プリセットフォルダーを表示
 	Delete this preset	このプリセットを削除
+	Opens in your web browser: {url}	ウェブブラウザーで開きます：{url}
+	Saves this session's log and shows it in your file manager.	このセッションのログを保存し、ファイルマネージャーで表示します。
+	Shows a report on this computer.	このコンピューターのレポートを表示します。
+	Shows the version, community links and credits in a FilmCraft window.	バージョン、コミュニティへのリンク、クレジットを FilmCraft のウィンドウに表示します。
+	Couldn't open your web browser	ウェブブラウザーを開けませんでした
+	Open this address in your browser yourself:	このアドレスをご自身でブラウザーで開いてください：

@@ -8,7 +8,9 @@
 
 use std::sync::mpsc::{Sender, channel};
 
+use egui::accesskit::Role;
 use egui_kittest::Harness;
+use egui_kittest::kittest::{By, NodeT, Queryable};
 use filmcraft_engine::Session;
 use filmcraft_ui_egui::FilmcraftApp;
 use filmcraft_ui_egui::control::ControlRequest;
@@ -83,6 +85,13 @@ impl Driver {
     /// The open dialog's draft (`UiState::settings`), Null when closed.
     fn draft(&mut self) -> Value {
         self.inspect()["ui"]["settings"].clone()
+    }
+    /// An automation element's rect.
+    fn rect(&mut self, id: &str) -> egui::Rect {
+        let v = self.ok("ui.elements", json!({"prefix": id}));
+        let e = v.as_array().unwrap().iter().find(|e| e["id"] == id).unwrap_or_else(|| panic!("no element {id}"));
+        let r: Vec<f32> = e["rect"].as_array().unwrap().iter().map(|x| x.as_f64().unwrap() as f32).collect();
+        egui::Rect::from_min_size(egui::pos2(r[0], r[1]), egui::vec2(r[2], r[3]))
     }
     fn pref(&mut self, key: &str) -> Value {
         self.exec("prefs.get", json!({"key": key}))
@@ -446,6 +455,42 @@ fn hex_field_takes_typing_a_character_at_a_time() {
     d.ok("ui.type", json!({"text": "5"}));
     d.frames(2);
     assert_eq!(hex(&mut d), "#12ab35");
+}
+
+/// Long translations stay on the page (#1517): field labels wrap in their column instead of running
+/// left into the category list, dropdowns cut their current choice to their width, and checkbox
+/// text wraps at the page edge.
+#[test]
+fn long_translations_stay_on_the_page() {
+    let mut d = Driver::demo();
+    for lang in ["en", "fr", "es", "pt-br", "de", "ru", "uk", "id"] {
+        d.exec("prefs.set", json!({"key": "general.interfaceLanguage", "value": lang}));
+        d.frames(3);
+        for c in CATEGORIES {
+            d.menu(&format!("app.settings.{c}"));
+            let page = d.rect("settings.page");
+            let ok = d.rect("settings.ok");
+            // the dialog's widgets only: the subtree of its area, found from its OK button
+            let Some(mut dialog) = d.harness.query_all(By::new().role(Role::Button)).find(|n| n.rect().contains(ok.center())) else { panic!("no OK button") };
+            while let Some(p) = dialog.parent().filter(|p| p.parent().is_some()) {
+                dialog = p;
+            }
+            let text = By::new().predicate(|n| matches!(n.role(), Role::Label | Role::CheckBox | Role::ComboBox | Role::TextInput | Role::Button));
+            let outside: Vec<String> = dialog
+                .query_all(text)
+                .map(|n| (n.accesskit_node().label().unwrap_or_default(), n.rect()))
+                .filter(|(_, r)| r.center().y > page.top() && r.center().y < page.bottom())
+                .filter(|(_, r)| r.left() < page.left() - 1.5 || r.right() > page.right() + 1.5)
+                .map(|(l, r)| format!("{l:?} {:.0}..{:.0}", r.left(), r.right()))
+                .collect();
+            assert!(outside.is_empty(), "{lang} {c}: outside the page {:.0}..{:.0}: {outside:?}", page.left(), page.right());
+            if matches!(c, "mediaAnalysis" | "mediaCache" | "memory" | "timeline") {
+                d.shot(&format!("{lang}-{c}"));
+            }
+            d.click("settings.cancel");
+        }
+    }
+    filmcraft_ui_egui::i18n::set_current(filmcraft_ui_egui::i18n::Language::En);
 }
 
 #[test]

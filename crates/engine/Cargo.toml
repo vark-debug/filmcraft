@@ -46,6 +46,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 log = { workspace = true }
+craft-docpath = { workspace = true }
 web-time = "1"
 ureq = { version = "3", default-features = false, features = ["rustls-no-provider", "platform-verifier", "json"], optional = true }
 rustls = { version = "0.23", default-features = false, optional = true }

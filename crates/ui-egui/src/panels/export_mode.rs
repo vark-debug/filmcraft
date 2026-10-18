@@ -24,7 +24,7 @@ use egui::{Align2, Color32, Rect, Sense, pos2, vec2};
 use filmcraft_engine::export::presets::{DEFAULT_PRESET, preset_key};
 use filmcraft_engine::export::{
     AudioCodec, BitrateMode, ExportSettings, ExrCompression, FieldOrder, Format, GpuRendering, H264Profile, HardwareEncoding, Multiplexer, MxfVideoCodec,
-    Placement, Scaling, TextOverlay, builtin_presets, format_bytes,
+    Placement, SampleFormat, Scaling, TextOverlay, builtin_presets, format_bytes,
 };
 use filmcraft_engine::time::{FrameRate, Tick};
 use serde::{Deserialize, Serialize};
@@ -310,11 +310,22 @@ fn row<R>(ui: &mut egui::Ui, t: &Tokens, label: &str, add: impl FnOnce(&mut egui
 
 /// A combo box over `options` (label, enabled); returns the chosen index.
 fn combo(ui: &mut egui::Ui, reg: &mut Reg, id: &str, selected: &str, options: &[(String, bool)], width: f32) -> Option<usize> {
+    let why = tl!("Not supported by FilmCraft's encoders yet");
+    let options: Vec<(String, Option<&str>)> = options.iter().map(|(l, on)| (l.clone(), (!on).then_some(why))).collect();
+    combo_why(ui, reg, id, selected, &options, width)
+}
+
+/// [`combo`] whose options carry why they are greyed out (label, `Some(reason)` when disabled).
+fn combo_why(ui: &mut egui::Ui, reg: &mut Reg, id: &str, selected: &str, options: &[(String, Option<&str>)], width: f32) -> Option<usize> {
     let mut chosen = None;
     let r = egui::ComboBox::from_id_salt(id).selected_text(crate::i18n::t(selected)).width(width).show_ui(ui, |ui| {
-        for (i, (label, enabled)) in options.iter().enumerate() {
-            let resp = ui.add_enabled(*enabled, egui::Button::selectable(label == selected, crate::i18n::t(label)));
-            let resp = if *enabled { resp } else { resp.on_disabled_hover_text(tl!("Not supported by FilmCraft's encoders yet")) };
+        for (i, (label, why)) in options.iter().enumerate() {
+            let enabled = why.is_none();
+            let resp = ui.add_enabled(enabled, egui::Button::selectable(label == selected, crate::i18n::t(label)));
+            let resp = match why {
+                Some(why) => resp.on_disabled_hover_text(*why),
+                None => resp,
+            };
             reg.add(format!("{id}.option.{i}"), resp.rect, label.clone());
             if resp.clicked() {
                 chosen = Some(i);
@@ -902,10 +913,22 @@ fn audio_section(ui: &mut egui::Ui, reg: &mut Reg, s: &mut ExportSettings, t: &T
         });
     } else {
         row(ui, t, tl!("Sample Size"), |ui| {
-            let sizes = [tl!("16 bit"), tl!("24 bit")];
-            let cur = if s.audio.bits >= 24 { sizes[1] } else { sizes[0] };
-            if let Some(i) = combo(ui, reg, "export.audio.bits", cur, &opts(&sizes), 120.0) {
-                s.audio.bits = if i == 0 { 16 } else { 24 };
+            // every size, the ones this codec and container cannot store greyed out; a size the
+            // audio format no longer takes (float after switching to FLAC) becomes 32-bit integer
+            if !s.supports_sample_format(s.audio.sample_format()) {
+                s.audio.set_sample_format(SampleFormat::Int32);
+            }
+            let sizes = [tl!("16 bit"), tl!("24 bit"), tl!("32 bit"), tl!("32 bit float")];
+            let why = |f: SampleFormat| match (s.supports_sample_format(f), s.audio_codec()) {
+                (true, _) => None,
+                (false, AudioCodec::Flac) => Some(tl!("FLAC stores whole-number samples only")),
+                (false, _) if s.format.is_mxf() => Some(tl!("MXF export writes integer PCM only")),
+                (false, _) => Some(tl!("Not supported by FilmCraft's encoders yet")),
+            };
+            let labels: Vec<(String, Option<&str>)> = SampleFormat::ALL.iter().zip(sizes).map(|(&f, l)| (l.to_string(), why(f))).collect();
+            let cur = SampleFormat::ALL.iter().position(|&f| f == s.audio.sample_format()).and_then(|i| sizes.get(i).copied()).unwrap_or(sizes[0]);
+            if let Some(&f) = combo_why(ui, reg, "export.audio.bits", cur, &labels, 120.0).and_then(|i| SampleFormat::ALL.get(i)) {
+                s.audio.set_sample_format(f);
             }
         });
     }

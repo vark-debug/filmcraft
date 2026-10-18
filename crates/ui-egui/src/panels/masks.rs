@@ -225,13 +225,18 @@ fn inside(pts: &[Vec2], p: Vec2) -> bool {
     w != 0
 }
 
-/// Mask editing on the Program monitor (selected mask) and the pen tool.
+/// Mask editing on the Program monitor (selected mask, while its clip is selected, as for the
+/// transform box) and the pen tool.
 pub fn monitor_overlay(app: &mut FilmcraftApp, ui: &mut egui::Ui, pic: Rect, frame: (u32, u32)) {
     if app.ui.mask_pen.is_some() {
         pen_overlay(app, ui, pic, frame);
         return;
     }
     let Some(sel) = app.session.state.selected_mask else { return };
+    // (the mask stays selected: its handles come back with its clip, #1341)
+    if !app.session.state.selection.contains(&sel.clip) {
+        return;
+    }
     let Some(seq) = app.session.active_sequence() else { return };
     let ph = app.session.playhead();
     let Some((_, it)) = seq.find_item(sel.clip) else { return };
@@ -302,7 +307,10 @@ pub fn monitor_overlay(app: &mut FilmcraftApp, ui: &mut egui::Ui, pic: Rect, fra
         ui.data_mut(|d| d.insert_temp(gesture_id.with("body"), ok));
     }
     if body.dragged_by(LEFT) && ui.data(|d| d.get_temp::<bool>(gesture_id.with("body"))).unwrap_or(false) && body.drag_delta() != egui::Vec2::ZERO {
-        actions.push(("masks.translate".into(), with(json!({"delta": clip_delta(body.drag_delta()), "merge": format!("body-{gesture}")}))));
+        let d = drag_step(ui, egui::Id::new(("mask-body-drag", gesture)), body.drag_delta());
+        if d != egui::Vec2::ZERO {
+            actions.push(("masks.translate".into(), with(json!({"delta": clip_delta(d), "merge": format!("body-{gesture}")}))));
+        }
     }
     if body.clicked() && !ptr_in(body.interact_pointer_pos()) {
         actions.push(("masks.select".into(), json!({"none": true})));
@@ -392,7 +400,10 @@ pub fn monitor_overlay(app: &mut FilmcraftApp, ui: &mut egui::Ui, pic: Rect, fra
             ui.data_mut(|d| d.insert_temp(sel_v_id, i));
         }
         if r.dragged_by(LEFT) && r.drag_delta() != egui::Vec2::ZERO {
-            actions.push(("masks.moveVertex".into(), with(json!({"vertex": i, "delta": clip_delta(r.drag_delta()), "merge": format!("vertex-{gesture}")}))));
+            let d = drag_step(ui, egui::Id::new(("mask-vertex-drag", gesture, i)), r.drag_delta());
+            if d != egui::Vec2::ZERO {
+                actions.push(("masks.moveVertex".into(), with(json!({"vertex": i, "delta": clip_delta(d), "merge": format!("vertex-{gesture}")}))));
+            }
         }
         if r.clicked() {
             if alt {
@@ -565,6 +576,33 @@ pub fn draft_path(points: &[[f64; 4]]) -> MaskPath {
     }
 }
 
+/// Delete / Backspace and Cmd+Z take back the last pen point while a mask is drawn (#1345). The
+/// draft is outside the undo history: run before the shortcuts, so the keys reach neither Clear
+/// (of the clip being masked) nor Undo (of the previous project edit). Taking back the last point
+/// drops the draft.
+pub(crate) fn pen_take_back(app: &mut FilmcraftApp, ctx: &egui::Context, text_focused: bool) {
+    let Some(d) = app.ui.mask_pen.as_mut() else { return };
+    let n = ctx.input_mut(|i| {
+        // Shift+Cmd+Z is Redo: consume_key ignores an extra Shift
+        let redo = i.events.iter().any(|e| matches!(e, egui::Event::Key { key: egui::Key::Z, pressed: true, modifiers: m, .. } if m.shift));
+        let undo = if redo { 0 } else { i.count_and_consume_key(egui::Modifiers::COMMAND, egui::Key::Z) };
+        let clear = if text_focused {
+            0
+        } else {
+            i.count_and_consume_key(egui::Modifiers::NONE, egui::Key::Backspace) + i.count_and_consume_key(egui::Modifiers::NONE, egui::Key::Delete)
+        };
+        undo + clear
+    });
+    if n == 0 {
+        return;
+    }
+    let left = d.points.len().saturating_sub(n);
+    d.points.truncate(left);
+    if left == 0 {
+        app.ui.mask_pen = None;
+    }
+}
+
 fn pen_overlay(app: &mut FilmcraftApp, ui: &mut egui::Ui, pic: Rect, frame: (u32, u32)) {
     let Some(draft) = app.ui.mask_pen.clone() else { return };
     let ph = app.session.playhead();
@@ -678,6 +716,27 @@ fn open_polyline(path: &MaskPath, to_screen: &Affine) -> Vec<Pos2> {
     out
 }
 
+/// This frame's drag delta for a whole-mask or vertex drag. With Shift held the movement since the
+/// press is constrained to 45° steps (horizontal, vertical, diagonal); the state (raw and applied
+/// totals) lives under `id`, which includes the pointer-press counter so each drag starts fresh.
+fn drag_step(ui: &egui::Ui, id: egui::Id, delta: egui::Vec2) -> egui::Vec2 {
+    let shift = ui.input(|i| i.modifiers.shift);
+    let (raw, applied) = ui.data(|d| d.get_temp::<(egui::Vec2, egui::Vec2)>(id)).unwrap_or_default();
+    let (raw, applied, step) = shift_drag(raw, applied, delta, shift);
+    ui.data_mut(|d| d.insert_temp(id, (raw, applied)));
+    step
+}
+
+/// Pure core of [`drag_step`]: `(raw total, applied total, step to apply now)`.
+fn shift_drag(raw: egui::Vec2, applied: egui::Vec2, delta: egui::Vec2, shift: bool) -> (egui::Vec2, egui::Vec2, egui::Vec2) {
+    if !(delta.x.is_finite() && delta.y.is_finite()) {
+        return (raw, applied, egui::Vec2::ZERO);
+    }
+    let raw = raw + delta;
+    let target = if shift { constrain_45(Pos2::ZERO, raw.to_pos2()).to_vec2() } else { applied + delta };
+    (raw, target, target - applied)
+}
+
 /// `to` moved onto the nearest 45° ray from `from` (horizontal, vertical or diagonal on screen),
 /// keeping its distance along that ray; `to` itself when it coincides with `from` or is not finite.
 fn constrain_45(from: Pos2, to: Pos2) -> Pos2 {
@@ -753,6 +812,26 @@ pub fn path_value(app: &mut FilmcraftApp, ui: &mut egui::Ui, clip: ClipId, effec
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn shift_drag_constrains_total_movement_to_45_degree_steps() {
+        use egui::vec2;
+        let (mut raw, mut applied) = (egui::Vec2::ZERO, egui::Vec2::ZERO);
+        let mut sum = egui::Vec2::ZERO;
+        // a mostly horizontal drag stays on the x axis
+        for d in [vec2(10.0, 2.0), vec2(10.0, 3.0), vec2(10.0, 1.0)] {
+            let (r, a, s) = shift_drag(raw, applied, d, true);
+            (raw, applied) = (r, a);
+            sum += s;
+        }
+        assert!(sum.y.abs() < 1e-4 && (sum.x - 30.0).abs() < 1.0, "{sum:?}");
+        // without shift the delta passes through unchanged
+        let (_, _, s) = shift_drag(egui::Vec2::ZERO, egui::Vec2::ZERO, vec2(3.0, 4.0), false);
+        assert_eq!(s, vec2(3.0, 4.0));
+        // a non-finite delta is ignored
+        let (_, _, s) = shift_drag(egui::Vec2::ZERO, egui::Vec2::ZERO, vec2(f32::NAN, 1.0), true);
+        assert_eq!(s, egui::Vec2::ZERO);
+    }
 
     #[test]
     fn constrain_45_snaps_to_the_nearest_eighth_turn() {
